@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 
 std::vector<char*> tokenize(const std::string& line) {
     std::stringstream ss(line);
@@ -36,7 +37,7 @@ int main() {
 
         if (line.empty()) continue;
 
-        // ---- check for pipe ----
+        // check for pipe
         size_t pipe_pos = line.find('|');
 
         if (pipe_pos != std::string::npos) {
@@ -46,6 +47,7 @@ int main() {
             auto left_args = tokenize(left);
             auto right_args = tokenize(right);
 
+            // Create the pipe (THE CHANNEL)
             int fd[2];
             if (pipe(fd) == -1) {
                 perror("pipe");
@@ -54,7 +56,7 @@ int main() {
 
             pid_t pid1 = fork();
             if (pid1 == 0) {
-                // Child 1: cmd1
+                // Child 1
                 dup2(fd[1], STDOUT_FILENO);
 
                 close(fd[0]);
@@ -67,7 +69,7 @@ int main() {
 
             pid_t pid2 = fork();
             if (pid2 == 0) {
-                // Child 2: cmd2
+                // Child 2
                 dup2(fd[0], STDIN_FILENO);
 
                 close(fd[0]);
@@ -90,8 +92,27 @@ int main() {
             continue;
         }
 
-        // ---- no pipe: normal execution ----
-        auto args = tokenize(line);
+        // no pipe: normal execution
+       
+        // auto args = tokenize(line);
+
+
+        size_t redirect_pos = line.find('>');
+
+        std::string command_line = line;
+        std::string out_file;
+        bool redirect = false;
+
+        if (redirect_pos != std::string::npos) {
+            redirect = true;
+            command_line = line.substr(0, redirect_pos); // Only left side
+            out_file = line.substr(redirect_pos + 1);    // Right side = filename
+            out_file.erase(0, out_file.find_first_not_of(" \t"));
+            out_file.erase(out_file.find_last_not_of(" \t") + 1);
+        }
+
+        // Tokenize only the command part (exclude > and filename)
+        auto args = tokenize(command_line);
 
         if (std::string(args[0]) == "exit") {
             free_args(args);
@@ -107,8 +128,20 @@ int main() {
 
         pid_t pid = fork();
         if (pid == 0) {
+            // Output redirection
+            if (redirect) {
+                int fd = open(out_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (fd < 0) {
+                    perror("open failed");
+                    exit(1);
+                }
+                dup2(fd, STDOUT_FILENO);
+                close(fd);
+            }
+
+            // Execute command
             execvp(args[0], args.data());
-            perror("execvp");
+            perror("execvp failed");
             exit(1);
         } else {
             waitpid(pid, nullptr, 0);
