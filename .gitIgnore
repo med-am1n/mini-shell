@@ -1,0 +1,20 @@
+# C/C++ compiled object files
+*.o
+*.obj
+
+# Executables (common default names, or add your specific executable names)
+a.out
+*.exe
+myprogram # Replace 'myprogram' with the actual name of your executable if it has no extension
+
+# Libraries
+*.lib
+*.a
+*.so
+*.dll
+*.dwo
+
+# Debugging and temporary files
+*.swp
+*~
+.DS_Store # Common OS-generated files
